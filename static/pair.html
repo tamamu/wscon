@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>WebSocket Controller</title>
+</head>
+<body>
+  <script>
+    let sock, x=0, y=0, isConnected=false;
+    let joys, joyBase, joyButton;
+    let isJoyStarted = false;
+    let isTouch = false;
+    let joyBaseX = 0;
+    let joyBaseY = 0;
+    let joyX = 0;
+    let joyY = 0;
+    let lastRendered = new Date();
+    let lastSent = new Date();
+    function update() {
+      let now = new Date();
+      if (now - lastRendered > 16 && isConnected) {
+        joyUpdate();
+        lastRendered = new Date();
+      }
+      if (now - lastSent > 500 && isConnected) {
+        sendInput();
+        lastSent = new Date();
+      }
+      requestAnimationFrame(update);
+    }
+    function sendInput() {
+      let mes = {
+        "type": "INPUT",
+        "payload": {
+          "roomId": "{{ room_id }}",
+          "key": "{{ player_key }}",
+          "token": "{{ player_token }}",
+          "x": x,
+          "y": y
+        }
+      };
+      let json = JSON.stringify(mes);
+      sock.send(json);
+      if (isConnected) {
+        setTimeout(sendInput, 100);
+      }
+    }
+    function joyUpdate() {
+      if (isJoyStarted) {
+        joys.classList.add("show");
+        joyBase.style.left = joyBaseX+"px";
+        joyBase.style.top = joyBaseY+"px";
+        let nx = Math.max(joyBaseX-100, Math.min(joyBaseX+100, joyX));
+        let ny = Math.max(joyBaseY-100, Math.min(joyBaseY+100, joyY));
+        joyButton.style.left = nx+"px";
+        joyButton.style.top = ny+"px";
+        x = Math.floor((nx-joyBaseX)/25);
+        y = Math.floor((ny-joyBaseY)/25);
+      } else {
+        joys.classList.remove("show");
+        x = 0; y = 0;
+      }
+    }
+    function normalizeX(x) {
+      let w = document.body.clientWidth/2;
+      return (x-w)/w;
+    }
+    function normalizeY(y) {
+      let h = document.body.clientHeight/2;
+      return (y-h)/h;
+    }
+    function onTouchStart(e) {
+      console.log(e);
+      isTouch = true;
+      isJoyStarted = true;
+      let f = e.targetTouches[0];
+      console.log(f);
+      joyBaseX = f.clientX;
+      joyBaseY = f.clientY;
+      joyX = f.clientX;
+      joyY = f.clientY;
+    }
+    function onTouchMove(e) {
+      if (isJoyStarted && isTouch) {
+        let f = e.targetTouches[0];
+        joyX = f.clientX;
+        joyY = f.clientY;
+      }
+    }
+    function onMouseDown(e) {
+      console.log(e);
+      if (isTouch) {
+        e.preventDefault();
+      } else {
+        isJoyStarted = true;
+        joyBaseX = e.clientX;
+        joyBaseY = e.clientY;
+        joyX = e.clientX;
+        joyY = e.clientY;
+      }
+    }
+    function onMouseMove(e) {
+      console.log(e)
+      console.log(isJoyStarted)
+      if (isJoyStarted) {
+        joyX = e.clientX;
+        joyY = e.clientY;
+      }
+    }
+    function onJoyEnd(e) {
+      isTouch = false;
+      isJoyStarted = false;
+    }
+
+    window.onload = () => {
+      joys = document.querySelector("#joys");
+      joyBase = document.querySelector("#joy-base");
+      joyButton = document.querySelector("#joy-button");
+      document.addEventListener("touchstart", onTouchStart);
+      document.addEventListener("touchmove", onTouchMove);
+      document.addEventListener("touchend", onJoyEnd);
+      document.addEventListener("mousedown", onMouseDown);
+      document.addEventListener("mousemove", onMouseMove);
+      document.addEventListener("mouseup", onJoyEnd);
+      let cb = document.querySelector("#connect-button");
+      requestAnimationFrame(update);
+      cb.onclick = startConnection;
+
+    function stopConnection() {
+        let mes = {
+          "type": "DISCONNECT",
+          "payload": {
+            "roomId": "{{ room_id }}",
+            "key": "{{ player_key }}",
+            "token": "{{ player_token }}"
+          }
+        };
+        let json = JSON.stringify(mes);
+        sock.send(json);
+    }
+
+    function startConnection() {
+      sock = new WebSocket("{{ scheme }}://{{ host }}/ws/");
+      sock.addEventListener("open", event => {
+        window.onbeforeunload = stopConnection;
+        let mes = {
+          "type": "CONNECT",
+          "payload": {
+            "roomId": "{{ room_id }}",
+            "key": "{{ player_key }}",
+            "token": "{{ player_token }}"
+          }
+        };
+        let json = JSON.stringify(mes);
+        sock.send(json);
+      });
+      sock.addEventListener("message", event => {
+        console.log(event.data);
+        let json = JSON.parse(event.data);
+        console.log(json);
+        switch (json["type"]) {
+          case "CONNECT_OK":
+            console.log("CONNECTION_START");
+            isConnected=true;
+            cb.classList.add("hide");
+          break;
+          case "DISCONNECT_OK":
+            console.log("CONNECTION_STOP");
+            isConnected=false;
+            cb.classList.remove("hide");
+          break;
+          default:
+            console.log("Message from server", event.data)
+          break;
+        }
+      });
+    }
+
+  }
+  </script>
+  <style>
+    body {
+      width: 100vw;
+      height: 100vh;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    #joys {
+      position: absolute;
+      left: 0;
+      top: 0;
+      visibility: hidden;
+    }
+    #joys.show {
+      visibility: visible;
+    }
+    #joy-base {
+      display: block;
+      position: absolute;
+      width: 120px;
+      height: 120px;
+      left: 0;
+      top: 0;
+      background-color: rgba(0,0,0,0.2);
+      border-radius: 60px;
+      transform: translateX(-50%) translateY(-50%);
+    }
+    #joy-button {
+      display: block;
+      position: absolute;
+      width: 80px;
+      height: 80px;
+      left: 0;
+      top: 0;
+      background-color: rgba(0,0,0,0.4);
+      border-radius: 40px;
+      transform: translateX(-50%) translateY(-50%);
+    }
+    #connect-button{
+      width: 30vw;
+      height: 30vh;
+      background-color: orange;
+      border-radius: 3vw;
+      color: black;
+      visibility: visible;
+    }
+    #connect-button.hide{
+      visibility: hidden;
+    }
+
+  </style>
+  <div id="joys">
+    <div id="joy-base"></div>
+    <div id="joy-button"></div>
+  </div>
+  <button id="connect-button">Connect</button>
+</body>
+</html>

@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>Room Settings</title>
+</head>
+<body>
+  <script>
+  window.onload = () => {
+    let sock = new WebSocket('{{ scheme }}://{{ host }}/ws/');
+    let allConnected = false;
+    let lastRendered = new Date();
+    let delta = 0;
+    function checkConnection() {
+      let mes = {'type':'CHKCON', 'payload': {'roomId': "{{ room_id }}", 'players': remainPlayers}};
+      let json = JSON.stringify(mes);
+      sock.send(json);
+    }
+
+    function view() {
+      let mes = {'type':'DATA', 'payload': {'roomId': "{{ room_id }}"}};
+      let json = JSON.stringify(mes);
+      sock.send(json);
+    }
+
+    function update() {
+      let now = new Date();
+      if (now - lastRendered > 16) {
+        checkConnection();
+        if (allConnected) view();
+        lastRendered = new Date();
+      }
+      requestAnimationFrame(update);
+    }
+
+    let c = [];
+    c[0] = document.querySelector('#c1');
+    c[1] = document.querySelector('#c2');
+    let p0 = document.querySelector('#p0');
+    let p1 = document.querySelector('#p1');
+    let remainPlayers = [];
+    for (let i=0; i < {{ player_count }}; ++i) {
+      remainPlayers.push(i);
+    }
+
+    sock.addEventListener('open', event => {
+      requestAnimationFrame(update);
+    })
+
+    sock.addEventListener('message', event => {
+      let json = JSON.parse(event.data);
+      switch (json["type"]) {
+        case "CHKCON_OK":
+          console.log(json);
+          let count = 0;
+          for (let i=0; i < {{player_count}}; ++i) {
+            if (json["payload"][i]) {
+              c[i].classList.add("connected");
+              count += 1;
+            } else {
+              c[i].classList.remove("connected");
+            }
+          }
+          if (count === {{ player_count }}) {
+            allConnected = true;
+          } else {
+            allConnected = false;
+          }
+        break;
+        case "DATA_OK":
+          console.log(json);
+          p0.style.left = json["payload"]["players"][0][0]+"px";
+          p0.style.top = json["payload"]["players"][0][1]+"px";
+          p1.style.left = json["payload"]["players"][1][0]+"px";
+          p1.style.top = json["payload"]["players"][1][1]+"px";
+        break;
+        default:
+          console.log(json);
+        break;
+      }
+    });
+  }
+  </script>
+  <style>
+    body {
+      width: 100vw;
+      height: 100vh;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    input[type=text] {
+      background-color: rgba(0,0,0,0.25);
+      border: 1px dotted #999;
+      border-radius: 4px;
+      color: white;
+      -webkit-appearance: none;
+    }
+    #pause {
+      width: 720px;
+    }
+    #pause ul {
+      list-style: none;
+    }
+    #pause ul li {
+      margin: 32px;
+    }
+    .player {
+      display: block;
+      position: absolute;
+      width: 24px;
+      height: 24px;
+      left: 0;
+      top: 0;
+      border-radius: 24px;
+    }
+    .connection {
+      width: 320px;
+      height: 320px;
+      text-align: center;
+      background-color: orange;
+      border-radius: 24px;
+    }
+    .connection h1 {
+      margin: 0;
+    }
+    .connection span {
+      display: block;
+      overflow: hidden;
+      opacity: 1;
+      transition: all .5s;
+    }
+    .connection.connected span {
+      display: block;
+      height: 0px;
+      overflow: hidden;
+      opacity: 0;
+      transition: all .5s;
+    }
+    .connection h2{
+      display: block;
+      height: 0px;
+      overflow: hidden;
+      opacity: 0;
+      transition: all .5s;
+    }
+    .connection.connected h2{
+      display: block;
+      height: 240px;
+      overflow: hidden;
+      opacity: 1;
+      transition: all .5s;
+    }
+
+  </style>
+  <div id="container">
+  </div>
+  <div id="game">
+    <div id="p0" style="background: blue;" class="player"></div>
+    <div id="p1" style="background: pink;" class="player"></div>
+  </div>
+  <div id="pause">
+    <ul style="display: flex;">
+    {% for link in links %}
+    <li id="c{{ loop.index }}" class="connection">
+      <h1>P{{ loop.index }}</h1>
+      <span>
+        <div>{{ link.qr | safe }}</div>
+        <input type="text" value="{{ link.uri }}" readonly>
+      </span>
+      <h2>Connected!</h2>
+    </li>
+    {% endfor %}
+    </ul>
+  </div>
+</body>
+</html>

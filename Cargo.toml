@@ -1,0 +1,16 @@
+[package]
+name = "wscon"
+version = "0.1.0"
+authors = ["Eddie <tamamu.1r1s@gmail.com>"]
+
+[dependencies]
+env_logger = "*"
+actix = "0.7.4"
+actix-web = "0.7.4"
+uuid = { version = "0.7.0-beta", features = ["v4"] }
+tera = "0.11.12"
+qrcode = "0.8"
+serde = "1.0"
+serde_derive = "1.0"
+serde_json = "1.0"
+
