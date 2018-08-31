@@ -36,8 +36,10 @@
     let c = [];
     c[0] = document.querySelector('#c1');
     c[1] = document.querySelector('#c2');
+    let pause = document.querySelector('#pause');
     let p0 = document.querySelector('#p0');
     let p1 = document.querySelector('#p1');
+    let ball = document.querySelector('#ball');
     let remainPlayers = [];
     for (let i=0; i < {{ player_count }}; ++i) {
       remainPlayers.push(i);
@@ -63,8 +65,10 @@
           }
           if (count === {{ player_count }}) {
             allConnected = true;
+            pause.classList.add("hide");
           } else {
             allConnected = false;
+            pause.classList.remove("hide");
           }
         break;
         case "DATA_OK":
@@ -75,10 +79,14 @@
           let p0y = json["payload"]["players"][0][1];
           let p1x = json["payload"]["players"][1][0];
           let p1y = json["payload"]["players"][1][1];
+          let bx = json["payload"]["ball"]["x"];
+          let by = json["payload"]["ball"]["y"];
           p0.style.left = (w+w*p0x)+"px";
           p0.style.top = (h+h*p0y)+"px";
           p1.style.left = (w+w*p1x)+"px";
           p1.style.top = (h+h*p1y)+"px";
+          ball.style.left = (w+w*bx)+"px";
+          ball.style.top = (h+h*by)+"px";
         break;
         default:
           console.log(json);
@@ -107,6 +115,11 @@
     }
     #pause {
       width: 720px;
+      transition: all .3s;
+      opacity: 1;
+    }
+    #pause.hide {
+      opacity: 0.1;
     }
     #pause ul {
       list-style: none;
@@ -117,12 +130,23 @@
     .player {
       display: block;
       position: absolute;
+      width: 3vw;
+      height: 10vw;
+      left: 0;
+      top: 0;
+      border-radius: 1vw;
+      transform: translateX(-50%) translateY(-50%);
+    }
+    .ball {
+      display: block;
+      position: absolute;
       width: 5vw;
       height: 5vw;
       left: 0;
       top: 0;
-      border-radius: 24px;
+      border-radius: 5vw;
       transform: translateX(-50%) translateY(-50%);
+      background-color: black;
     }
     .connection {
       width: 320px;
@@ -168,6 +192,7 @@
   <div id="game">
     <div id="p0" style="background: blue;" class="player"></div>
     <div id="p1" style="background: pink;" class="player"></div>
+    <div id="ball" class="ball"></div>
   </div>
   <div id="pause">
     <ul style="display: flex;">

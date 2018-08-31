@@ -2,6 +2,7 @@
 extern crate env_logger;
 extern crate uuid;
 extern crate qrcode;
+extern crate ordered_float;
 
 #[macro_use]
 extern crate actix;
@@ -16,12 +17,14 @@ extern crate serde_json;
 
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
+use std::thread;
 use uuid::Uuid;
 use qrcode::{QrCode, Version, EcLevel};
 use qrcode::render::svg;
 use actix::prelude::*;
 use actix_web::{error, fs, http, middleware, server, ws, App, Error, HttpContext, HttpRequest, HttpResponse};
 use serde_json::Value;
+use ordered_float::OrderedFloat;
 
 static BASE_URI: &'static str = "127.0.0.1:8080";
 
@@ -144,6 +147,12 @@ impl StreamHandler<ws::Message, ws::ProtocolError> for Controller {
                                     let payload = v.get("payload").unwrap().clone();
                                     let state = ctx.state().clone();
                                     ctx.text(data(state, serde_json::from_value(payload).unwrap()))
+                                }
+                                // UPDATE is deprecated
+                                "UPDATE" => {
+                                    let payload = v.get("payload").unwrap().clone();
+                                    let state = ctx.state().clone();
+                                    ctx.text(update(state, serde_json::from_value(payload).unwrap()))
                                 }
                                 _ => ctx.text(r#"{
                                     "type": "ERR",
@@ -288,7 +297,7 @@ fn input(state: ArcAppState, payload: InputPayload) -> String {
         let player = room.game.players.get_mut(key).unwrap();
         //player.0 += payload.x;
         player.1 += payload.y * 0.05;
-        player.1 = player.1.min(1f32).max(-1f32);
+        player.1 = player.1.min(1f64).max(-1f64);
         r#"{
             "type": "INPUT_OK",
             "payload": {}
@@ -319,6 +328,49 @@ fn data(state: ArcAppState, payload: DataPayload) -> String {
     }
 }
 
+fn update(state: ArcAppState, payload: UpdatePayload) -> String {
+    let mut auth = false;
+    {
+        let rooms = state.rooms.read().unwrap();
+        if let Some(room) = rooms.get(&payload.roomId) {
+            auth = true;
+        }
+    }
+    if auth {
+        let mut rooms = state.rooms.write().unwrap();
+        let room = rooms.get_mut(&payload.roomId).unwrap();
+        let one = OrderedFloat::from(1.0);
+        let mone = OrderedFloat::from(-1.0);
+        room.game.ball.x += room.game.ball.angle.cos() * room.game.ball.spd;
+        room.game.ball.y += room.game.ball.angle.sin() * room.game.ball.spd;
+        let bx = OrderedFloat::from(room.game.ball.x);
+        let by = OrderedFloat::from(room.game.ball.y);
+        if bx < mone {
+            room.game.ball.x = -1.0 - (room.game.ball.x + 1.0);
+            room.game.ball.angle = std::f64::consts::PI - room.game.ball.angle;
+        } else if bx > one {
+            room.game.ball.x = 1.0 - (room.game.ball.x - 1.0);
+            room.game.ball.angle = std::f64::consts::PI - room.game.ball.angle;
+        }
+        if by < mone {
+            room.game.ball.y = -1.0 - (room.game.ball.y + 1.0);
+            room.game.ball.angle = std::f64::consts::PI*2. - room.game.ball.angle;
+        } else if by > one {
+            room.game.ball.y = 1.0 - (room.game.ball.y - 1.0);
+            room.game.ball.angle = std::f64::consts::PI*2. - room.game.ball.angle;
+        }
+        r#"{
+            "type": "UPDATE_OK",
+            "payload": {}
+        }"#.to_string()
+    } else {
+        r#"{
+        "type": "ERR",
+        "payload": {
+            "message": "Invalid"
+        }}"#.to_string()
+    }
+}
 
 #[derive(Deserialize, Debug)]
 struct CheckConnectionPayload {
@@ -345,8 +397,8 @@ struct InputPayload {
     roomId: String,
     key: String,
     token: String,
-    x: f32,
-    y: f32
+    x: f64,
+    y: f64
 }
 
 #[derive(Deserialize, Debug)]
@@ -354,10 +406,23 @@ struct DataPayload {
     roomId: String,
 }
 
+#[derive(Deserialize, Debug)]
+struct UpdatePayload {
+    roomId: String,
+}
+
+#[derive(Serialize, Default, Debug, Clone)]
+struct Ball {
+    x: f64,
+    y: f64,
+    angle: f64,
+    spd: f64,
+}
+
 #[derive(Serialize, Default, Debug, Clone)]
 struct Game {
-    players: Vec<(f32, f32)>,
-    ball: (f32, f32),
+    players: Vec<(f64, f64)>,
+    ball: Ball,
 }
 
 #[derive(Debug)]
@@ -413,6 +478,8 @@ fn main() {
                 room.players.push(Player::new());
                 room.game.players.push((-1.,0.));
                 room.game.players.push((1.,0.));
+                room.game.ball.angle = std::f64::consts::PI*0.3;
+                room.game.ball.spd = 0.05;
                 //{
                     let mut rooms = req.state().rooms.write().unwrap();
                     rooms.insert(room_id.clone(), room);
