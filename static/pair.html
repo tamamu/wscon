@@ -2,6 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,minimum-scale=1.0,maximum-scale=1.0,user-scalable=no">
   <title>WebSocket Controller</title>
 </head>
 <body>
@@ -20,9 +21,12 @@
       let now = new Date();
       if (now - lastRendered > 16 && isConnected) {
         joyUpdate();
+        {% if player_key == 0 %}
+        sendUpdate();
+        {% endif %}
         lastRendered = new Date();
       }
-      if (now - lastSent > 500 && isConnected) {
+      if (now - lastSent > 16 && isConnected) {
         sendInput();
         lastSent = new Date();
       }
@@ -41,10 +45,18 @@
       };
       let json = JSON.stringify(mes);
       sock.send(json);
-      if (isConnected) {
-        setTimeout(sendInput, 100);
-      }
     }
+    function sendUpdate() {
+      let mes = {
+        "type": "UPDATE",
+        "payload": {
+          "roomId": "{{ room_id }}",
+        }
+      };
+      let json = JSON.stringify(mes);
+      sock.send(json);
+    }
+
     function joyUpdate() {
       if (isJoyStarted) {
         joys.classList.add("show");
@@ -180,8 +192,8 @@
   </script>
   <style>
     body {
-      width: 100vw;
-      height: 100vh;
+      width: 100%;
+      height: 100%;
       margin: 0;
       padding: 0;
       overflow: hidden;
