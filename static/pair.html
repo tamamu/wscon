@@ -6,7 +6,7 @@
 </head>
 <body>
   <script>
-    let sock, x=0, y=0, isConnected=false;
+    let sock, x=0., y=0., isConnected=false;
     let joys, joyBase, joyButton;
     let isJoyStarted = false;
     let isTouch = false;
@@ -54,11 +54,11 @@
         let ny = Math.max(joyBaseY-100, Math.min(joyBaseY+100, joyY));
         joyButton.style.left = nx+"px";
         joyButton.style.top = ny+"px";
-        x = Math.floor((nx-joyBaseX)/25);
-        y = Math.floor((ny-joyBaseY)/25);
+        x = (nx-joyBaseX)/100.;
+        y = (ny-joyBaseY)/100.;
       } else {
         joys.classList.remove("show");
-        x = 0; y = 0;
+        x = 0.; y = 0.;
       }
     }
     function normalizeX(x) {

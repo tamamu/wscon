@@ -286,8 +286,9 @@ fn input(state: ArcAppState, payload: InputPayload) -> String {
         let mut rooms = state.rooms.write().unwrap();
         let room = rooms.get_mut(&payload.roomId).unwrap();
         let player = room.game.players.get_mut(key).unwrap();
-        player.0 += payload.x;
-        player.1 += payload.y;
+        //player.0 += payload.x;
+        player.1 += payload.y * 0.05;
+        player.1 = player.1.min(1f32).max(-1f32);
         r#"{
             "type": "INPUT_OK",
             "payload": {}
@@ -344,8 +345,8 @@ struct InputPayload {
     roomId: String,
     key: String,
     token: String,
-    x: i32,
-    y: i32
+    x: f32,
+    y: f32
 }
 
 #[derive(Deserialize, Debug)]
@@ -355,7 +356,8 @@ struct DataPayload {
 
 #[derive(Serialize, Default, Debug, Clone)]
 struct Game {
-    players: Vec<(i32, i32)>
+    players: Vec<(f32, f32)>,
+    ball: (f32, f32),
 }
 
 #[derive(Debug)]
@@ -409,8 +411,8 @@ fn main() {
                 let room_id = Uuid::new_v4().to_string();
                 room.players.push(Player::new());
                 room.players.push(Player::new());
-                room.game.players.push((50,50));
-                room.game.players.push((150,50));
+                room.game.players.push((-1.,0.));
+                room.game.players.push((1.,0.));
                 //{
                     let mut rooms = req.state().rooms.write().unwrap();
                     rooms.insert(room_id.clone(), room);
